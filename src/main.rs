@@ -17,11 +17,14 @@ fn main() {
     let mut depth = 6;
     let mut verbose = false;
     let mut negative = false;
+    let mut policy = Policy::ToEven;
     let mut args = env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg {
             opt if opt.starts_with('-') => {
                 match opt.as_ref() {
+                    "-e" => policy = Policy::ToEven,
+                    "-a" => policy = Policy::AwayFromZero,
                     "-v" => verbose = true,
                     "-n" => negative = true,
                     _ => println!("unknown -option '{opt}'")
@@ -33,7 +36,7 @@ fn main() {
                         depth = num;
                     }
                     _ => {
-                        println!("Usage: rounding [-v][-n][depth = 1..15]");
+                        println!("Usage: rounding [-v][-n][-a][-e][depth = 1..15]");
                         return;
                     }
                 }
@@ -41,7 +44,7 @@ fn main() {
         }
     }
     let timer = Instant::now();
-    find_issues(depth, verbose, negative);
+    find_issues(depth, verbose, negative, &policy);
     let elapsed = timer.elapsed();
     println!("elapsed time: {:.3} s", elapsed.as_secs_f64());
 }
@@ -56,7 +59,7 @@ fn main() {
 ///
 /// Note: we could also check [Round::round_digit] for comparison but it's not correct all
 /// the time anyway.
-fn find_issues(depth: usize, verbose: bool, negative: bool) {
+fn find_issues(depth: usize, verbose: bool, negative: bool, policy: &Policy) {
     let it = RoundTestIter::new(depth, negative);
     let mut nbr_test = 0;
     let mut nbr_error = 0;
@@ -66,7 +69,7 @@ fn find_issues(depth: usize, verbose: bool, negative: bool) {
     for (sval, pr) in it {
         let val = f64::from_str(&sval).expect(&format!("error converting {} to f64", sval));
         let display_val = format!("{val:.pr$}");
-        let sround_val = str_sround(&sval, pr);
+        let sround_val = str_sround(&sval, pr, policy);
         let comp = if display_val == sround_val {
             "=="
         } else {
@@ -78,7 +81,8 @@ fn find_issues(depth: usize, verbose: bool, negative: bool) {
             println!("{sval:<8}:{pr}: {display_val} {comp} {sround_val}");
         }
     }
-    println!("\n=> {nbr_error} / {nbr_test} error(s) for depth 0-{depth}, so {} %", f64_sround(100.0 * nbr_error as f64 / nbr_test as f64, 1));
+    println!("\n=> {nbr_error} / {nbr_test} error(s) for depth 0-{depth}, so {} %",
+             f64_sround(100.0 * nbr_error as f64 / nbr_test as f64, 1, &Policy::AwayFromZero));
 }
 
 //==============================================================================
@@ -196,6 +200,12 @@ fn pow10(n: i32) -> f64 {
 // String-based rounding (for comparison)
 //------------------------------------------------------------------------------
 
+#[derive(Debug)]
+pub enum Policy {
+    ToEven,
+    AwayFromZero
+}
+
 /// Rounds the fractional part of `n` to `pr` digits, using [str_sround] to perform
 /// a rounding to the nearest, away from zero.
 ///
@@ -206,12 +216,12 @@ fn pow10(n: i32) -> f64 {
 /// assert_eq!(f64_sround(2.95, 1), "3.0");
 /// assert_eq!(f64_sround(-2.95, 1), "-3.0");
 /// ```
-pub fn f64_sround(n: f64, pr: usize) -> String {
+pub fn f64_sround(n: f64, pr: usize, policy: &Policy) -> String {
     let s = n.to_string();
     if !n.is_normal() {
         s
     } else {
-        str_sround(&s, pr)
+        str_sround(&s, pr, policy)
     }
 }
 
@@ -225,10 +235,10 @@ pub fn f64_sround(n: f64, pr: usize) -> String {
 /// * `pr`: number of digits to keep in the fractional part
 ///
 /// ```
-/// assert_eq!(f64_sround("2.95", 1), "3.0");
-/// assert_eq!(f64_sround("-2.95", 1), "-3.0");
+/// assert_eq!(f64_sround("2.95", 1, Policy::ToEven), "3.0");
+/// assert_eq!(f64_sround("-2.95", 1, Policy::ToEven), "-3.0");
 /// ```
-pub fn str_sround(n: &str, pr: usize) -> String {
+pub fn str_sround(n: &str, pr: usize, policy: &Policy) -> String {
     let mut s = n.to_string().into_bytes();
     match s.iter().position(|&x| x == b'.') {
         None => {
@@ -238,7 +248,7 @@ pub fn str_sround(n: &str, pr: usize) -> String {
             }
             unsafe { String::from_utf8_unchecked(s) }
         }
-        Some(pos) => {
+        Some(mut pos) => {
             let prec = s.len() - pos - 1;
             if prec < pr {
                 for _ in prec..pr {
@@ -266,8 +276,17 @@ pub fn str_sround(n: &str, pr: usize) -> String {
                                 s.push(b'1');
                                 break;
                             }
-                            Some(ch) => {
-                                s.push(ch + 1);
+                            Some(ch2) => {
+                                match policy {
+                                    Policy::ToEven => {
+                                        if ch > b'5' || ch2 & 1 != 0 || frac != 0 || int != 0 {
+                                            s.push(ch2 + 1)
+                                        } else {
+                                            s.push(ch2)
+                                        }
+                                    }
+                                    Policy::AwayFromZero => s.push(ch2 + 1),
+                                }
                                 break;
                             }
                             None => {
@@ -280,6 +299,7 @@ pub fn str_sround(n: &str, pr: usize) -> String {
                         for _ in 0..int {
                             s.push(b'0');
                         }
+                        pos += int;
                         s.push(b'.');
                     }
                     for _ in 0..frac {

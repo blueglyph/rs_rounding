@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::{f64_sround, Round, RoundTestIter, str_sround};
+use crate::{f64_sround, INIT_DIGIT, Policy, RoundTestIter, str_sround};
 
 #[test]
 fn test_format() {
@@ -35,7 +35,7 @@ fn test_format() {
         (-0.999999999998765, "-1.00"),
     ];
     for (val, expected) in tests {
-        let actual = f64_sround(val, 2);
+        let actual = f64_sround(val, 2, &Policy::AwayFromZero);
         assert_eq!(actual, expected, "original value: {}", val);
     }
 }
@@ -45,7 +45,7 @@ fn test_precision() {
     let f = "1.49495";
     let exp_list = ["1", "1.5", "1.49", "1.495", "1.4950", "1.49495"];
     for (pr, expected) in exp_list.into_iter().enumerate() {
-        let actual = str_sround(f, pr);
+        let actual = str_sround(f, pr, &Policy::AwayFromZero);
         assert_eq!(actual, expected, "mismatch with precision = {pr}");
     }
 }
@@ -54,20 +54,31 @@ fn test_precision() {
 fn visual_test() {
     // not a real test, just a visual comparison
 
-    println!("'original value': 'Display-rounded' <> 'Round::round_digit()' <> 'f64_sround()'");
-    // wrong with fmt, OK with work-around:
-    for val in vec![0.05_f64, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95] {
-        let nval = -val;
-        println!("{val:<5}: {val:.1}  <> {:.1}   <> {},   {nval:<5}:  {nval:.1}  <> {:.1}  <> {}",
-                 val.round_digit(1), f64_sround(val, 1),
-                 nval.round_digit(1), f64_sround(nval, 1));
-    }
-    // some values wrong with work-around too (0.145):
-    for val in vec![0.105, 0.115, 0.125, 0.135, 0.145, 0.155, 0.165, 0.175, 0.185, 0.195] {
-        let nval = -val;
-        println!("{val:<5}: {val:.2} <> {:.2} <> {},  {nval:<5}: {nval:.2} <> {:.2} <> {}",
-                 nval.round_digit(2), f64_sround(val, 2),
-                 nval.round_digit(2), f64_sround(nval, 2));
+    for policy in &[Policy::AwayFromZero, Policy::ToEven] {
+        println!("{:?} ===================================================", policy);
+        println!("'original value': 'Display-rounded' <> 'f64_sround()'");
+        // wrong with fmt, OK with work-around:
+        for val in vec![0.04_f64, 0.05, 0.06, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.94, 0.95, 0.96] {
+            let nval = -val;
+            println!("{val:<5}: {val:.1}  <> {},   {nval:<5}:  {nval:.1}  <> {}",
+                     f64_sround(val, 1, policy),
+                     f64_sround(nval, 1, policy));
+        }
+        // some values wrong with work-around too (0.145):
+        for val in vec![0.104, 0.105, 0.106, 0.115, 0.125, 0.135, 0.145, 0.155, 0.165, 0.175, 0.185, 0.194, 0.195, 0.196, 0.994, 0.995, 0.996] {
+            let nval = -val;
+            println!("{val:<5}: {val:.2} <> {},  {nval:<5}: {nval:.2} <> {}",
+                     f64_sround(val, 2, policy),
+                     f64_sround(nval, 2, policy));
+        }
+
+        for val in vec![1.4, 1.5, 1.6, 2.4, 2.5, 2.6, 9.4, 9.5, 9.6] {
+            let nval = -val;
+            println!("{val:<5}: {val:>2.0} <> {:>2},  {nval:<5}: {nval:>3.0} <> {:>3}",
+                     f64_sround(val, 0, policy),
+                     f64_sround(nval, 0, policy));
+        }
+
     }
 }
 
