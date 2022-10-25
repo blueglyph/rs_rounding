@@ -112,7 +112,7 @@ fn round_test_iter() {
         ("0.94", 1), ("0.95", 1), ("0.904", 2), ("0.905", 2), ("0.914", 2), ("0.915", 2), ("0.924", 2), ("0.925", 2),
         ("0.934", 2), ("0.935", 2), ("0.944", 2), ("0.945", 2), ("0.954", 2), ("0.955", 2), ("0.964", 2), ("0.965", 2),
         ("0.974", 2), ("0.975", 2), ("0.984", 2), ("0.985", 2), ("0.994", 2), ("0.995", 2)];
-
+    let exp_list = exp_list.iter().filter(|(a, _)| INIT_DIGIT == b'4' || a.ends_with('5')).collect::<Vec<_>>();
     let iter = RoundTestIter::new(3, false);
     for (idx, ((s, pr), (exp_s, exp_pr))) in iter.zip(exp_list).enumerate() {
         let reference = format!("value index {idx}: ({s}, {pr}) instead of ({exp_s}, {exp_pr})");

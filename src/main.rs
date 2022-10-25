@@ -92,6 +92,9 @@ fn find_issues(depth: usize, verbose: bool, negative: bool, policy: &Policy) {
 const INIT_STEP: u8 = b'a';
 const LAST_STEP: u8 = b'9';
 
+// const INIT_DIGIT: u8 = b'4';     // to test 0.*4 and 0.*5 values
+const INIT_DIGIT: u8 = b'5';        // to test 0.*5 values only
+
 struct RoundTestIter {
     base: Vec<u8>,
     precision: usize,
@@ -119,10 +122,10 @@ impl Iterator for RoundTestIter {
         match self.base.pop() {
             Some(step) if step >= b'a' => {
                 let mut value = self.base.clone();
-                value.push(step as u8 - INIT_STEP + b'4');
+                value.push(step as u8 - INIT_STEP + INIT_DIGIT);
                 // 'value' only contains ASCII characters:
                 let result = Some((unsafe { String::from_utf8_unchecked(value) }, self.precision - 1));
-                if step == b'b' {
+                if step as u8 - INIT_STEP + INIT_DIGIT == b'5' {
                     if self.precision < self.max {
                         self.base.push(b'0');
                         self.base.push(INIT_STEP);
